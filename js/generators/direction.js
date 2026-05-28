@@ -89,52 +89,7 @@ function pickWeightedRandomDirectionWithMagnitude(dirCoords, baseWord, neighbors
     return chosen;
 }
 
-// Modified buildOntoWordMap to use magnitude-aware picker
-buildOntoWordMap(words, wordCoordMap, neighbors, branchesAllowed, bannedFromBranching=[], enableMagnitude=false) {
-    let premiseMap = {};
-    let usedDirCoords = [];
 
-    for (const nextWord of words) {
-        const baseWord = pickBaseWord(neighbors, branchesAllowed, bannedFromBranching);
-        
-        // Get direction with optional magnitude
-        const chosen = pickWeightedRandomDirectionWithMagnitude(
-            this.generator.getName().includes('3D') ? dirCoords3D : dirCoords,
-            baseWord,
-            neighbors,
-            wordCoordMap,
-            enableMagnitude
-        );
-        
-        wordCoordMap[nextWord] = addCoords(wordCoordMap[baseWord], chosen.scaledCoord);
-        
-        // Pass magnitude to statement creator
-        premiseMap[premiseKey(baseWord, nextWord)] = this.generator.createDirectionStatement(
-            baseWord, 
-            nextWord, 
-            chosen.direction,
-            enableMagnitude ? chosen.magnitude : null
-        );
-        
-        usedDirCoords.push({
-            direction: chosen.direction,
-            magnitude: chosen.magnitude,
-            scaledCoord: chosen.scaledCoord
-        });
-        
-        neighbors[baseWord] = neighbors[baseWord] ?? [];
-        neighbors[baseWord].push(nextWord);
-        neighbors[nextWord] = neighbors[nextWord] ?? [];
-        neighbors[nextWord].push(baseWord);
-    }
-
-    let premises = orderPremises(premiseMap, neighbors);
-    if (savedata.widePremises) {
-        premises = createWidePremises(premises, premiseMap);
-    }
-
-    return [wordCoordMap, neighbors, premises, usedDirCoords];
-}
 
 class Direction2D {
     constructor(enableHardMode=true, enableAnchor=false) {
@@ -146,23 +101,36 @@ class Direction2D {
         return pickWeightedRandomDirection(dirCoords.slice(), baseWord, neighbors, wordCoordMap);
     }
 
-    createDirectionStatement(a, b, dirCoord, magnitude = null) {
-        const direction = dirStringFromCoord(dirCoord);
-        const reverseDirection = dirStringFromCoord(inverse(dirCoord));
-        
-        // Include magnitude if available (for quantified statements)
-        const magnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
-        const reverseMagnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
-        
-        return {
-            start: b,
-            end: a,
-            relation: `is${magnitudeText} ${direction} of`,
-            reverse: `is${reverseMagnitudeText} ${reverseDirection} of`,
-            relationMinimal: dirStringMinimal(dirCoord),
-            reverseMinimal: dirStringMinimal(inverse(dirCoord)),
-        }
+    // REPLACE Direction2D.createDirectionStatement (lines 149-165)
+createDirectionStatement(a, b, dirCoord, magnitude = null) {
+    const direction = dirStringFromCoord(dirCoord);
+    const reverseDirection = dirStringFromCoord(inverse(dirCoord));
+    
+    // Include magnitude if available (for quantified statements)
+    const magnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
+    const reverseMagnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
+    
+    return {
+        start: b,
+        end: a,
+        relation: `is${magnitudeText} ${direction} of`,
+        reverse: `is${reverseMagnitudeText} ${reverseDirection} of`,
+        relationMinimal: dirStringMinimal(dirCoord),
+        reverseMinimal: dirStringMinimal(inverse(dirCoord)),
     }
+}
+
+// ADD to Direction2D (add this new method)
+pickDirectionWithMagnitude(baseWord, neighbors, wordCoordMap, enableMagnitude = false) {
+    return pickWeightedRandomDirectionWithMagnitude(
+        dirCoords.slice(),
+        baseWord,
+        neighbors,
+        wordCoordMap,
+        enableMagnitude
+    );
+}
+
 
     initialCoord() {
         return [0, 0];
@@ -206,18 +174,32 @@ class Direction3D {
         return pickWeightedRandomDirection(dirCoords3D, baseWord, neighbors, wordCoordMap);
     }
 
-    createDirectionStatement(a, b, dirCoord) {
-        const direction = dirStringFromCoord(dirCoord);
-        const reverseDirection = dirStringFromCoord(inverse(dirCoord));
-        return {
-            start: b,
-            end: a,
-            relation: `is ${direction} of`,
-            reverse: `is ${reverseDirection} of`,
-            relationMinimal: dirStringMinimal(dirCoord),
-            reverseMinimal: dirStringMinimal(inverse(dirCoord)),
-        }
+    createDirectionStatement(a, b, dirCoord, magnitude = null) {
+    const direction = dirStringFromCoord(dirCoord);
+    const reverseDirection = dirStringFromCoord(inverse(dirCoord));
+    const magnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
+    const reverseMagnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
+    
+    return {
+        start: b,
+        end: a,
+        relation: `is${magnitudeText} ${direction} of`,
+        reverse: `is${reverseMagnitudeText} ${reverseDirection} of`,
+        relationMinimal: dirStringMinimal(dirCoord),
+        reverseMinimal: dirStringMinimal(inverse(dirCoord)),
     }
+}
+
+// ADD to Direction3D
+pickDirectionWithMagnitude(baseWord, neighbors, wordCoordMap, enableMagnitude = false) {
+    return pickWeightedRandomDirectionWithMagnitude(
+        dirCoords3D,
+        baseWord,
+        neighbors,
+        wordCoordMap,
+        enableMagnitude
+    );
+}
 
     initialCoord() {
         return [0, 0, 0];
@@ -257,20 +239,35 @@ class Direction4D {
         return dirCoord
     }
 
-    createDirectionStatement(a, b, dirCoord) {
-        const direction = dirStringFromCoord(dirCoord);
-        const reverseDirection = dirStringFromCoord(inverse(dirCoord));
-        const timeName = timeMapping[dirCoord[3]];
-        const reverseTimeName = reverseTimeNames[timeName];
-        return {
-            start: b,
-            end: a,
-            relation: `${timeName} ${direction} of`,
-            reverse: `${reverseTimeName} ${reverseDirection} of`,
-            relationMinimal: dirStringMinimal(dirCoord),
-            reverseMinimal: dirStringMinimal(inverse(dirCoord)),
-        }
+    // REPLACE Direction4D.createDirectionStatement (lines 260-273)
+createDirectionStatement(a, b, dirCoord, magnitude = null) {
+    const direction = dirStringFromCoord(dirCoord);
+    const reverseDirection = dirStringFromCoord(inverse(dirCoord));
+    const timeName = timeMapping[dirCoord[3]];
+    const reverseTimeName = reverseTimeNames[timeName];
+    const magnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
+    const reverseMagnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
+    
+    return {
+        start: b,
+        end: a,
+        relation: `${timeName}${magnitudeText} ${direction} of`,
+        reverse: `${reverseTimeName}${reverseMagnitudeText} ${reverseDirection} of`,
+        relationMinimal: dirStringMinimal(dirCoord),
+        reverseMinimal: dirStringMinimal(inverse(dirCoord)),
     }
+}
+
+// ADD to Direction4D
+pickDirectionWithMagnitude(baseWord, neighbors, wordCoordMap, enableMagnitude = false) {
+    return pickWeightedRandomDirectionWithMagnitude(
+        dirCoords4D,
+        baseWord,
+        neighbors,
+        wordCoordMap,
+        enableMagnitude
+    );
+}
 
     initialCoord() {
         return [0, 0, 0, 0];
@@ -632,29 +629,49 @@ class DirectionQuestion {
         return result;
     }
 
-    buildOntoWordMap(words, wordCoordMap, neighbors, branchesAllowed, bannedFromBranching=[]) {
-        let premiseMap = {};
-        let usedDirCoords = [];
+buildOntoWordMap(words, wordCoordMap, neighbors, branchesAllowed, bannedFromBranching=[], enableMagnitude=false) {
+    let premiseMap = {};
+    let usedDirCoords = [];
 
-        for (const nextWord of words) {
-            const baseWord = pickBaseWord(neighbors, branchesAllowed, bannedFromBranching);
-            const dirCoord = this.generator.pickDirection(baseWord, neighbors, wordCoordMap);
-            wordCoordMap[nextWord] = addCoords(wordCoordMap[baseWord], dirCoord);
-            premiseMap[premiseKey(baseWord, nextWord)] = this.generator.createDirectionStatement(baseWord, nextWord, dirCoord);
-            usedDirCoords.push(dirCoord);
-            neighbors[baseWord] = neighbors[baseWord] ?? [];
-            neighbors[baseWord].push(nextWord);
-            neighbors[nextWord] = neighbors[nextWord] ?? [];
-            neighbors[nextWord].push(baseWord);
-        }
-
-        let premises = orderPremises(premiseMap, neighbors);
-        if (savedata.widePremises) {
-            premises = createWidePremises(premises, premiseMap);
-        }
-
-        return [wordCoordMap, neighbors, premises, usedDirCoords];
+    for (const nextWord of words) {
+        const baseWord = pickBaseWord(neighbors, branchesAllowed, bannedFromBranching);
+        
+        // Get direction with optional magnitude
+        const chosen = enableMagnitude 
+            ? this.generator.pickDirectionWithMagnitude(baseWord, neighbors, wordCoordMap, true)
+            : { 
+                direction: this.generator.pickDirection(baseWord, neighbors, wordCoordMap),
+                magnitude: null,
+                scaledCoord: this.generator.pickDirection(baseWord, neighbors, wordCoordMap)
+              };
+        
+        wordCoordMap[nextWord] = addCoords(wordCoordMap[baseWord], chosen.scaledCoord);
+        
+        premiseMap[premiseKey(baseWord, nextWord)] = this.generator.createDirectionStatement(
+            baseWord, 
+            nextWord, 
+            chosen.direction,
+            chosen.magnitude
+        );
+        
+        usedDirCoords.push({
+            direction: chosen.direction,
+            magnitude: chosen.magnitude,
+            scaledCoord: chosen.scaledCoord
+        });
+        
+        neighbors[baseWord] = neighbors[baseWord] ?? [];
+        neighbors[baseWord].push(nextWord);
+        neighbors[nextWord] = neighbors[nextWord] ?? [];
+        neighbors[nextWord].push(baseWord);
     }
+
+    let premises = orderPremises(premiseMap, neighbors);
+    if (savedata.widePremises) {
+        premises = createWidePremises(premises, premiseMap);
+    }
+
+    return [wordCoordMap, neighbors, premises, usedDirCoords];
 }
 
 function createDirectionGenerator(length) {
@@ -662,6 +679,7 @@ function createDirectionGenerator(length) {
         question: new DirectionQuestion(new Direction2D()),
         premiseCount: getPremisesFor('overrideDirectionPremises', length),
         weight: savedata.overrideDirectionWeight,
+        enableMagnitude: savedata.enableDistanceMagnitude ?? false, // New setting
     };
 }
 
@@ -670,6 +688,7 @@ function createDirection3DGenerator(length) {
         question: new DirectionQuestion(new Direction3D()),
         premiseCount: getPremisesFor('overrideDirection3DPremises', length),
         weight: savedata.overrideDirection3DWeight,
+        enableMagnitude: savedata.enableDistanceMagnitude ?? false, // New setting
     };
 }
 
@@ -678,6 +697,7 @@ function createDirection4DGenerator(length) {
         question: new DirectionQuestion(new Direction4D()),
         premiseCount: getPremisesFor('overrideDirection4DPremises', length),
         weight: savedata.overrideDirection4DWeight,
+        enableMagnitude: savedata.enableDistanceMagnitude ?? false, // New setting
     };
 }
 
@@ -686,5 +706,6 @@ function createAnchorSpaceGenerator(length) {
         question: new DirectionQuestion(new Direction2D(false, true)),
         premiseCount: getPremisesFor('overrideAnchorSpacePremises', length),
         weight: savedata.overrideAnchorSpaceWeight,
+        enableMagnitude: savedata.enableDistanceMagnitude ?? false, // New setting
     };
 }
