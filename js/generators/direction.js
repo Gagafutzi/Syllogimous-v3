@@ -69,7 +69,7 @@ class Direction2D {
     }
 
     pickDirection(baseWord, neighbors, wordCoordMap) {
-        return pickWeightedRandomDirection(dirCoords.slice(1), baseWord, neighbors, wordCoordMap);
+        return pickWeightedRandomDirection(dirCoords.slice(), baseWord, neighbors, wordCoordMap);
     }
 
     createDirectionStatement(a, b, dirCoord) {
@@ -540,7 +540,7 @@ class DirectionQuestion {
                     [starters[0]]: [starters[1], starters[2]],
                     [starters[1]]: [starters[0], starters[3]],
                     [starters[2]]: [starters[0]],
-                    [starters[3]]: [starters[1]],
+                    [starters[3]]: [starters[0], starters[1]],
                 };
             }
 
