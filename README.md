@@ -10,7 +10,7 @@ Modified version of Syllogimous-v3, created to support new theories and experime
 [ikokusovereignty](https://github.com/ikokusovereignty/)
 [soamsy](https://github.com/soamsy/)
 [giladkingsley](https://github.com/giladkingsley/)
-
+[Gagafutzi](https://github.com/gagafutzi/)
 
 # Attribution-NonCommercial 3.0 Unported (CC BY-NC 3.0)
 
