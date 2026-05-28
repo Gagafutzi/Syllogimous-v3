@@ -123,7 +123,7 @@ class SpaceHardMode {
         const lastUsed = usedDimensions.length > 0 ? usedDimensions[usedDimensions.length - 1] : -1;
         const lastOther = otherDimensions.length > 0 ? otherDimensions[otherDimensions.length - 1] : -1;
         const noLastUsed = dimensionPool.filter((v, i) => i !== lastUsed);
-        const noLastOther = noLastUsed.filter((v, i) => i !== lastOther);
+        const noLastOther = noLastUsed.filter(v => v !== lastOther);
 
         const pool = new Set(noLastOther.length > 0 ? noLastOther : noLastUsed);
         const available = allShifts.map((v, i) => [v, i]).filter(([v, i]) => pool.has(i));
