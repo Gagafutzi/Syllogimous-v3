@@ -25,41 +25,115 @@ function getConclusionCoords(wordCoordMap, startWord, endWord) {
     return [diffCoord, conclusionCoord];
 }
 
+// Modified coordinate system: [x, y, z, ...] represents actual position
+// Direction statements now include both direction AND magnitude
+
+function getDirectionAndDistance(fromCoord, toCoord) {
+    const diff = diffCoords(fromCoord, toCoord);
+    const direction = normalize(diff);
+    const magnitude = Math.max(...diff.map(Math.abs)); // Chebyshev distance for diagonal clarity
+    return { direction, magnitude, diff };
+}
+
 function taxicabDistance(a, b) {
     return a.map((v,i) => Math.abs(b[i] - v)).reduce((left,right) => left + right)
 }
 
-function pickWeightedRandomDirection(dirCoords, baseWord, neighbors, wordCoordMap) {
+function pickWeightedRandomDirectionWithMagnitude(dirCoords, baseWord, neighbors, wordCoordMap, enableMagnitude = false) {
     const badTargets = (neighbors[baseWord] ?? []).map(word => wordCoordMap[word]);
     const base = wordCoordMap[baseWord];
     let pool = [];
+    
     for (const dirCoord of dirCoords) {
-        const endLocation = dirCoord.map((d,i) => d + base[i]);
-        const distanceToClosest = badTargets
-            .map(badTarget => taxicabDistance(badTarget, endLocation))
-            .reduce((a,b) => Math.min(a,b), 999);
-        if (distanceToClosest == 0) {
-            pool.push(dirCoord)
-        } else if (distanceToClosest == 1) {
-            pool.push(dirCoord);
-            pool.push(dirCoord);
-            pool.push(dirCoord);
-            pool.push(dirCoord);
-            pool.push(dirCoord);
-        } else if (distanceToClosest == 2) {
-            pool.push(dirCoord);
-            pool.push(dirCoord);
-            pool.push(dirCoord);
-            pool.push(dirCoord);
-        } else if (distanceToClosest == 3) {
-            pool.push(dirCoord);
-            pool.push(dirCoord);
-        } else {
-            pool.push(dirCoord);
+        // Consider multiple distances along this direction
+        const distances = enableMagnitude ? [1, 2] : [1]; // Allow 1 or 2 steps in a direction
+        
+        for (const dist of distances) {
+            const scaledCoord = dirCoord.map(d => d * dist);
+            const endLocation = addCoords(base, scaledCoord);
+            
+            const distanceToClosest = badTargets
+                .map(badTarget => taxicabDistance(badTarget, endLocation))
+                .reduce((a, b) => Math.min(a, b), 999);
+            
+            let weight = 1;
+            if (distanceToClosest === 0) weight = 0.5; // Collision - avoid
+            else if (distanceToClosest === 1) weight = 3; // Very close - prefer
+            else if (distanceToClosest === 2) weight = 5; // Close - very prefer
+            else if (distanceToClosest === 3) weight = 4; // Nearby
+            else weight = 2; // Far
+            
+            // Prefer longer distances slightly (to enable overlapping)
+            if (dist > 1) weight *= 1.3;
+            
+            for (let i = 0; i < weight; i++) {
+                pool.push({
+                    direction: dirCoord,
+                    magnitude: dist,
+                    scaledCoord: scaledCoord
+                });
+            }
         }
     }
+    
+    if (pool.length === 0) {
+        // Fallback: just use unit directions
+        return {
+            direction: dirCoords[Math.floor(Math.random() * dirCoords.length)],
+            magnitude: 1,
+            scaledCoord: dirCoords[Math.floor(Math.random() * dirCoords.length)]
+        };
+    }
+    
+    const chosen = pickRandomItems(pool, 1).picked[0];
+    return chosen;
+}
 
-    return pickRandomItems(pool, 1).picked[0];
+// Modified buildOntoWordMap to use magnitude-aware picker
+buildOntoWordMap(words, wordCoordMap, neighbors, branchesAllowed, bannedFromBranching=[], enableMagnitude=false) {
+    let premiseMap = {};
+    let usedDirCoords = [];
+
+    for (const nextWord of words) {
+        const baseWord = pickBaseWord(neighbors, branchesAllowed, bannedFromBranching);
+        
+        // Get direction with optional magnitude
+        const chosen = pickWeightedRandomDirectionWithMagnitude(
+            this.generator.getName().includes('3D') ? dirCoords3D : dirCoords,
+            baseWord,
+            neighbors,
+            wordCoordMap,
+            enableMagnitude
+        );
+        
+        wordCoordMap[nextWord] = addCoords(wordCoordMap[baseWord], chosen.scaledCoord);
+        
+        // Pass magnitude to statement creator
+        premiseMap[premiseKey(baseWord, nextWord)] = this.generator.createDirectionStatement(
+            baseWord, 
+            nextWord, 
+            chosen.direction,
+            enableMagnitude ? chosen.magnitude : null
+        );
+        
+        usedDirCoords.push({
+            direction: chosen.direction,
+            magnitude: chosen.magnitude,
+            scaledCoord: chosen.scaledCoord
+        });
+        
+        neighbors[baseWord] = neighbors[baseWord] ?? [];
+        neighbors[baseWord].push(nextWord);
+        neighbors[nextWord] = neighbors[nextWord] ?? [];
+        neighbors[nextWord].push(baseWord);
+    }
+
+    let premises = orderPremises(premiseMap, neighbors);
+    if (savedata.widePremises) {
+        premises = createWidePremises(premises, premiseMap);
+    }
+
+    return [wordCoordMap, neighbors, premises, usedDirCoords];
 }
 
 class Direction2D {
@@ -72,14 +146,19 @@ class Direction2D {
         return pickWeightedRandomDirection(dirCoords.slice(), baseWord, neighbors, wordCoordMap);
     }
 
-    createDirectionStatement(a, b, dirCoord) {
+    createDirectionStatement(a, b, dirCoord, magnitude = null) {
         const direction = dirStringFromCoord(dirCoord);
         const reverseDirection = dirStringFromCoord(inverse(dirCoord));
+        
+        // Include magnitude if available (for quantified statements)
+        const magnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
+        const reverseMagnitudeText = magnitude ? ` ${magnitude} step${magnitude > 1 ? 's' : ''}` : '';
+        
         return {
             start: b,
             end: a,
-            relation: `is ${direction} of`,
-            reverse: `is ${reverseDirection} of`,
+            relation: `is${magnitudeText} ${direction} of`,
+            reverse: `is${reverseMagnitudeText} ${reverseDirection} of`,
             relationMinimal: dirStringMinimal(dirCoord),
             reverseMinimal: dirStringMinimal(inverse(dirCoord)),
         }
