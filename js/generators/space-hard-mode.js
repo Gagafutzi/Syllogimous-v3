@@ -17,8 +17,9 @@ class SpaceHardMode {
             newWordMap = structuredClone(wordCoordMap);
             [operations, usedDimensions] = this.applyHardMode(newWordMap, startWord, endWord);
             [newDiffCoord, newConclusionCoord] = getConclusionCoords(newWordMap, startWord, endWord);
-            if (newConclusionCoord.slice(0, 3).every(c => c === 0)) {
-                continue;
+            const spatialDims = this.numDimensions || 3;
+            if (newConclusionCoord.slice(0, spatialDims).every(c => c === 0)) {
+            continue;
             }
             const distance = newDiffCoord.map(Math.abs).reduce((a, b) => a + b);
             const distanceLimit = Math.max(3, Math.floor(Object.keys(newWordMap).length / 2));
